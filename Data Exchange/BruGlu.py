@@ -10,12 +10,16 @@ from tkinter import ttk
 auth = HTTPBasicAuth('Get From Brewfather site/account', 'Get From Brewfather site/account')
 
 def getBatch( batchId ):
-    query = {'include' : 'recipe.mash'}
+    query = {'include' : 'recipe.mash,recipe.equipment'}
+    #query = {'include' : ''}
     response = requests.get('https://api.brewfather.app/v1/batches/' + batchId, auth=auth, params=query)
     batch = response.json()
 
     data = '[{"Name":"Recipe","Value":"' + batch['recipe']['name'] + '"}'
+
+    #print(batch['recipe'])
     
+    # Mash Steps
     indx = 1
     for step in batch['recipe']['mash']['steps']:
         data = data + ', {"Name":"Mash Temp ' + str(indx) + '","Value":"' + str(step['displayStepTemp']) + '"}'
@@ -26,6 +30,17 @@ def getBatch( batchId ):
         data = data + ', {"Name":"Mash Temp ' + str(indx) + '","Value":"0.00"}'
         data = data + ', {"Name":"Mash Rest ' + str(indx) + '","Value":"00:00:00"}'
         indx = indx + 1 
+
+    # Boil Time
+    hours = int(batch['recipe']['equipment']['boilTime'] / 60)
+    minutes = batch['recipe']['equipment']['boilTime'] % int(60)
+    if minutes < 10:
+        data = data + ', {"Name":"Boil Time","Value":"0' + str(hours) + ':0' + str(minutes) +':00"}'
+    else:
+        data = data + ', {"Name":"Boil Time","Value":"0' + str(hours) + ':' + str(minutes) +':00"}' 
+
+    boilVol = batch['recipe']['equipment']['boilSize'] * 0.264172 # Liters -> Gallons
+    data = data + ', {"Name":"Target Sparge Vol","Value":"' + str(boilVol) + '"'
 
     data = data + ']'
     headers = {"Content-Type": "application/json"}
