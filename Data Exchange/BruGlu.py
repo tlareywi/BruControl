@@ -1,31 +1,35 @@
 import requests
 from requests.auth import HTTPBasicAuth
+import json
 
 import _tkinter
 import tkinter
 from tkinter import *
 from tkinter import ttk
 
-# See https://api.brewfather.app
-auth = HTTPBasicAuth('Get From Brewfather site/account', 'Get From Brewfather site/account')
+# Replace with auth data from Brewfather
+auth = HTTPBasicAuth('xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx')
 
 def getBatch( batchId ):
-    query = {'include' : 'recipe.mash,recipe.equipment'}
-    #query = {'include' : ''}
+    query = {'include' : 'recipe.mash,recipe.equipment,recipe.data'}
+    #query = {'include' : ''} # Uncommenting will pull down 'all' batch data
+
     response = requests.get('https://api.brewfather.app/v1/batches/' + batchId, auth=auth, params=query)
     batch = response.json()
+    #print( json.dumps(batch, indent=2) )
 
     data = '[{"Name":"Recipe","Value":"' + batch['recipe']['name'] + '"}'
-
-    #print(batch['recipe'])
     
     # Mash Steps
     indx = 1
     for step in batch['recipe']['mash']['steps']:
         data = data + ', {"Name":"Mash Temp ' + str(indx) + '","Value":"' + str(step['displayStepTemp']) + '"}'
-        data = data + ', {"Name":"Mash Rest ' + str(indx) + '","Value":"00:' + str(step['stepTime']) + ':00"}'
+        hours = int(step['stepTime'] / 60)
+        minutes = step['stepTime'] % int(60)
+        data = data + ', {"Name":"Mash Rest ' + str(indx) + '","Value":"' + str(hours) + ':' + str(minutes) + ':00"}'
         indx = indx + 1
     
+    # Zero out any remaining from previous batch
     while indx < 7:
         data = data + ', {"Name":"Mash Temp ' + str(indx) + '","Value":"0.00"}'
         data = data + ', {"Name":"Mash Rest ' + str(indx) + '","Value":"00:00:00"}'
@@ -39,8 +43,17 @@ def getBatch( batchId ):
     else:
         data = data + ', {"Name":"Boil Time","Value":"0' + str(hours) + ':' + str(minutes) +':00"}' 
 
+    # Target pre-boil volume
     boilVol = batch['recipe']['equipment']['boilSize'] * 0.264172 # Liters -> Gallons
-    data = data + ', {"Name":"Target Sparge Vol","Value":"' + str(boilVol) + '"'
+    data = data + ', {"Name":"Target Sparge Vol","Value":"' + str(boilVol) + '"}'
+
+    # Water Strike Temp
+    strikeTemp =  batch['recipe']['data']['strikeTemp'] * 1.80 + 32.0 # C -> F
+    data = data + ', {"Name":"Strike Temp","Value":"' + str(strikeTemp) + '"}'
+
+    # Mash water volume
+    strikeVol =  batch['recipe']['data']['mashWaterAmount'] * 0.264172 # Liters -> Gallons
+    data = data + ', {"Name":"Strike Volume","Value":"' + str(strikeVol) + '"}'
 
     data = data + ']'
     headers = {"Content-Type": "application/json"}
